@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>氫原子</title>
+  <style>
+    html,body{height:100%;margin:0}
+    body { margin:0; background:#000; color:#fff; font-family:sans-serif; }
+    #controls { position:absolute; top:8px; left:12px; background:rgba(0,0,0,0.6); padding:10px; border-radius:8px; z-index:10; }
+    select, button, input { margin:4px; padding:4px; }
+    canvas { display:block; width:100%; height:100%; }
+  </style>
+</head>
+<body>
+  <div id="controls">
+    <div style="font-size:13px;margin-bottom:6px">hint：<span style="color:#ff0000">紅X</span> <span style="color:#00ff00">綠Y</span> <span style="color:#0000ff">藍Z</span> 按鍵盤上下左右見旋轉 滑鼠滾輪縮放</div>
+    <label>量子數 n: <input type="number" id="nInput" min="1" max="10" value="1" style="width:60px"/></label>
+    <label> l: <select id="lSelect"></select></label>
+    <label> m: <select id="mSelect"></select></label>
+    <button id="showWave">確認</button>
+  </div>
+  <canvas id="canvas"></canvas>
+
+  <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
+
+  <script>
+    const canvas = document.getElementById("canvas");
+    const renderer = new THREE.WebGLRenderer({canvas, antialias:true});
+    renderer.setPixelRatio(window.devicePixelRatio || 1);
+    renderer.setSize(window.innerWidth, window.innerHeight);
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x000000);
+
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 2000);
+    scene.add(camera);
+
+    const light = new THREE.PointLight(0xffffff,1);
+    light.position.set(50,50,50);
+    scene.add(light);
+
+    function createAxis(p1, p2, color){
+      const material = new THREE.LineBasicMaterial({color: color});
+      const points = [new THREE.Vector3(...p1), new THREE.Vector3(...p2)];
+      const geometry = new THREE.BufferGeometry().setFromPoints(points);
+      return new THREE.Line(geometry, material);
+    }
+
+    scene.add(createAxis([-500,0,0],[500,0,0],0xff0000));
+    scene.add(createAxis([0,0,-500],[0,0,500],0x00ff00)); 
+    scene.add(createAxis([0,-500,0],[0,500,0],0x0000ff)); 
+
+    function makeTextSprite(message, color) {
+      const fontSize = 48;
+      const c = document.createElement('canvas');
+      c.width = 256; c.height = 64;
+      const ctx = c.getContext('2d');
+      ctx.font = fontSize + "px Arial";
+      ctx.fillStyle = color;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.clearRect(0,0,c.width,c.height);
+      ctx.fillText(message, c.width/2, c.height/2);
+      const texture = new THREE.CanvasTexture(c);
+      const spriteMaterial = new THREE.SpriteMaterial({map: texture, transparent: true});
+      const sprite = new THREE.Sprite(spriteMaterial);
+      sprite.scale.set(40,10,1);
+      return sprite;
+    }
+
+    const xPosLabel = makeTextSprite("+X", "#ff0000"); xPosLabel.position.set(520,0,0); scene.add(xPosLabel);
+    const xNegLabel = makeTextSprite("-X", "#ff0000"); xNegLabel.position.set(-520,0,0); scene.add(xNegLabel);
+
+    const yPosLabel = makeTextSprite("+Y", "#00ff00"); yPosLabel.position.set(0,0,520); scene.add(yPosLabel);
+    const yNegLabel = makeTextSprite("-Y", "#00ff00"); yNegLabel.position.set(0,0,-520); scene.add(yNegLabel);
+
+    const zPosLabel = makeTextSprite("+Z", "#0000ff"); zPosLabel.position.set(0,520,0); scene.add(zPosLabel);
+    const zNegLabel = makeTextSprite("-Z", "#0000ff"); zNegLabel.position.set(0,-520,0); scene.add(zNegLabel);
+
+    let radius = 100;
+    let theta = Math.PI/4;
+    let phi = Math.PI/4;
+
+    function updateCameraPosition(){
+      const x_user = radius * Math.sin(theta) * Math.cos(phi);
+      const y_user = radius * Math.sin(theta) * Math.sin(phi);
+      const z_user = radius * Math.cos(theta);
+      camera.position.set(x_user, z_user, y_user);
+      camera.lookAt(0,0,0);
+    }
+    updateCameraPosition();
+
+    window.addEventListener("keydown",(e)=>{
+      const step = 0.05;
+      if(e.key === "ArrowUp") theta -= step;
+      if(e.key === "ArrowDown") theta += step;
+      if(e.key === "ArrowLeft") phi -= step;
+      if(e.key === "ArrowRight") phi += step;
+      theta = Math.max(0.01, Math.min(Math.PI-0.01, theta));
+      updateCameraPosition();
+    });
+
+    window.addEventListener("wheel",(e)=>{
+      radius += e.deltaY * 0.1;
+      radius = Math.max(10, Math.min(800, radius));
+      updateCameraPosition();
+    });
+
+    let currentObj = null;
+    function mulberry32(a) {
+      return function() {
+        let t = a += 0x6D2B79F5;
+        t = Math.imul(t ^ t>>>15, t | 1);
+        t ^= t + Math.imul(t ^ t>>>7, t | 61);
+        return ((t ^ t>>>14) >>> 0) / 4294967296;
+      }
+    }
+
+    const nInput = document.getElementById("nInput");
+    const lSelect = document.getElementById("lSelect");
+    const mSelect = document.getElementById("mSelect");
+
+    function populateL(){
+      let n = parseInt(nInput.value);
+      if(isNaN(n) || n < 1) n = 1;
+      lSelect.innerHTML = "";
+      for(let l = 0; l <= n - 1; l++){
+        const opt = document.createElement("option");
+        opt.value = l; opt.text = l;
+        lSelect.appendChild(opt);
+      }
+      populateM();
+    }
+    function populateM(){
+      const l = parseInt(lSelect.value);
+      mSelect.innerHTML = "";
+      for(let m = -l; m <= l; m++){
+        const opt = document.createElement("option");
+        opt.value = m; opt.text = m;
+        mSelect.appendChild(opt);
+      }
+    }
+    nInput.addEventListener("input", populateL);
+    lSelect.addEventListener("change", populateM);
+    populateL();
+
+    const factorialCache = new Map();
+    function factorial(n){
+      if(n<0) return 0;
+      if(factorialCache.has(n)) return factorialCache.get(n);
+      let res=1;
+      for(let i=1;i<=n;i++) res*=i;
+      factorialCache.set(n,res);
+      return res;
+    }
+
+    function assocLegendre(l,m,x){
+      if(m<0) return Math.pow(-1,m)*(factorial(l-m)/factorial(l+m))*assocLegendre(l,-m,x);
+      if(l===m) return Math.pow(-1,m)*(2*m-1)*Math.sqrt(1-x*x);
+      if(l===m+1) return (2*m+1)*x*assocLegendre(m,m,x);
+      return ((2*l-1)*x*assocLegendre(l-1,m)-(l+m-1)*assocLegendre(l-2,m,x))/(l-m);
+    }
+
+    function realSphericalHarmonic(l,m,theta,phi){
+      const absM=Math.abs(m);
+      const Plm=assocLegendre(l,absM,Math.cos(theta));
+      const N=Math.sqrt((2*l+1)/(4*Math.PI)*factorial(l-absM)/factorial(l+absM));
+      if(m===0) return N*Plm;
+      else if(m>0) return Math.sqrt(2)*N*Plm*Math.cos(m*phi);
+      else return Math.sqrt(2)*N*Plm*Math.sin(absM*phi);
+    }
+
+    function generalizedLaguerre(k,a,x){
+      if(k===0) return 1;
+      if(k===1) return 1+a-x;
+      let L0=1,L1=1+a-x;
+      for(let i=2;i<=k;i++){
+        let Li=((2*(i-1)+1+a-x)*L1-((i-1)+a)*L0)/i;
+        L0=L1; L1=Li;
+      }
+      return L1;
+    }
+
+    function radialR(n,l,r){
+      const rho=2*r/n;
+      const Lval=generalizedLaguerre(n-l-1,2*l+1,rho);
+      const pre=Math.sqrt(Math.pow(2/n,3)*factorial(n-l-1)/(2*n*factorial(n+l)));
+      return pre*Math.pow(rho,l)*Math.exp(-rho/2)*Lval;
+    }
+
+    function showWaveFunction(){
+      if(currentObj){ scene.remove(currentObj); try{ currentObj.geometry.dispose(); currentObj.material.dispose(); }catch(e){} currentObj=null; }
+
+      const n=parseInt(nInput.value);
+      const l=parseInt(lSelect.value);
+      const m=parseInt(mSelect.value);
+
+      const geometry=new THREE.BufferGeometry();
+      const positions=[];
+
+      const dist = camera.position.length();
+      const particleNum = 20000; 
+      const pointSize = 0.05;    
+
+      const seed = n*150 + l*15 + m;
+      const random = mulberry32(seed);
+
+      for(let i=0;i<particleNum;i++){
+        const r = random()*n*5;
+        const theta = Math.acos(2*random()-1);
+        const phi = 2*Math.PI*random();
+        const R = radialR(n,l,r);
+        const Y = realSphericalHarmonic(l,m,theta,phi);
+        const pd = Math.pow(R*Y,2);
+        if(random() < pd*1000){
+          const x_user = r*Math.sin(theta)*Math.cos(phi);
+          const y_user = r*Math.sin(theta)*Math.sin(phi);
+          const z_user = r*Math.cos(theta);
+          positions.push(x_user, z_user, y_user);
+        }
+      }
+
+      geometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
+      const material=new THREE.PointsMaterial({color:0x00ffff,size:pointSize});
+      currentObj=new THREE.Points(geometry,material);
+      scene.add(currentObj);
+    }
+    document.getElementById("showWave").addEventListener("click",showWaveFunction);
+
+    function animate(){
+      requestAnimationFrame(animate);
+      renderer.render(scene,camera);
+    }
+    animate();
+
+    window.addEventListener("resize",()=>{
+      camera.aspect=window.innerWidth/window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+  </script>
+</body>
+</html>
