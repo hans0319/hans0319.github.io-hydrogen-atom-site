@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!DOCTYPE html> 
 <html lang="zh-Hant">
 <head>
   <meta charset="UTF-8">
@@ -13,7 +13,12 @@
 </head>
 <body>
   <div id="controls">
-    <div style="font-size:13px;margin-bottom:6px">hint：<span style="color:#ff0000">紅X</span> <span style="color:#00ff00">綠Y</span> <span style="color:#0000ff">藍Z</span> 按鍵盤上下左右鍵旋轉 滑鼠滾輪縮放</div>
+    <div style="font-size:13px;margin-bottom:6px">
+      hint：<span style="color:#ff0000">紅X</span> 
+      <span style="color:#00ff00">綠Y</span> 
+      <span style="color:#0000ff">藍Z</span> 
+      按鍵盤上下左右鍵旋轉 滑鼠滾輪縮放
+    </div>
     <label>量子數 n: <input type="number" id="nInput" min="1" max="10" value="1" style="width:60px"/></label>
     <label> l: <select id="lSelect"></select></label>
     <label> m: <select id="mSelect"></select></label>
@@ -158,7 +163,7 @@
       if(m<0) return Math.pow(-1,m)*(factorial(l-m)/factorial(l+m))*assocLegendre(l,-m,x);
       if(l===m) return Math.pow(-1,m)*(2*m-1)*Math.sqrt(1-x*x);
       if(l===m+1) return (2*m+1)*x*assocLegendre(m,m,x);
-      return ((2*l-1)*x*assocLegendre(l-1,m)-(l+m-1)*assocLegendre(l-2,m,x))/(l-m);
+      return ((2*l-1)*x*assocLegendre(l-1,m,x)-(l+m-1)*assocLegendre(l-2,m,x))/(l-m);
     }
 
     function realSphericalHarmonic(l,m,theta,phi){
@@ -189,7 +194,11 @@
     }
 
     function showWaveFunction(){
-      if(currentObj){ scene.remove(currentObj); try{ currentObj.geometry.dispose(); currentObj.material.dispose(); }catch(e){} currentObj=null; }
+      if(currentObj){ 
+        scene.remove(currentObj); 
+        try{ currentObj.geometry.dispose(); currentObj.material.dispose(); }catch(e){} 
+        currentObj=null; 
+      }
 
       const n=parseInt(nInput.value);
       const l=parseInt(lSelect.value);
@@ -199,7 +208,9 @@
       const positions=[];
 
       const dist = camera.position.length();
-      const particleNum = 20000; 
+      // 粒子數隨 n^3 增加
+      const baseParticleNum = 20000;
+      const particleNum = baseParticleNum * n * n * n; 
       const pointSize = 0.05;    
 
       const seed = n*150 + l*15 + m;
